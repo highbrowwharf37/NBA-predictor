@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import pickle
 import numpy as np
+from sklearn.metrics import accuracy_score, roc_auc_score
 
 # Load model and data
 with open("model.pkl", "rb") as f:
@@ -25,6 +26,10 @@ team_avgs = games.groupby('TEAM_ABBREVIATION').agg(
 
 teams = sorted(team_avgs['TEAM_ABBREVIATION'].tolist())
 
+features = ['pts_diff','fg_diff','fg3_diff','reb_diff','ast_diff',
+            'tov_diff','stl_diff','pm_diff','rest_diff',
+            'win_pct_diff','def_diff','home_court']
+
 def get_win_prob(home_abbr, away_abbr, home_rest, away_rest):
     h = team_avgs[team_avgs['TEAM_ABBREVIATION'] == home_abbr].iloc[0]
     a = team_avgs[team_avgs['TEAM_ABBREVIATION'] == away_abbr].iloc[0]
@@ -42,9 +47,6 @@ def get_win_prob(home_abbr, away_abbr, home_rest, away_rest):
         'def_diff':     a['avg_pts_allowed'] - h['avg_pts_allowed'],
         'home_court':   1
     }
-    features = ['pts_diff','fg_diff','fg3_diff','reb_diff','ast_diff',
-                'tov_diff','stl_diff','pm_diff','rest_diff',
-                'win_pct_diff','def_diff','home_court']
     X = pd.DataFrame([game])[features]
     return model.predict_proba(X)[0][1]
 
@@ -52,7 +54,6 @@ def simulate_series(team1, team2, n_simulations=10000):
     home_court_schedule = [team1, team1, team2, team2, team1, team2, team1]
     series_wins = {team1: 0, team2: 0}
     game_count_wins = {4: 0, 5: 0, 6: 0, 7: 0}
-
     for _ in range(n_simulations):
         t1_wins = 0
         t2_wins = 0
@@ -60,11 +61,7 @@ def simulate_series(team1, team2, n_simulations=10000):
             home = home_court_schedule[game_num]
             away = team2 if home == team1 else team1
             p = get_win_prob(home, away, 2, 2)
-            if np.random.random() < p:
-                home_wins = True
-            else:
-                home_wins = False
-            if (home_wins and home == team1) or (not home_wins and home == team2):
+            if (np.random.random() < p and home == team1) or (np.random.random() >= p and home == team2):
                 t1_wins += 1
             else:
                 t2_wins += 1
@@ -76,16 +73,15 @@ def simulate_series(team1, team2, n_simulations=10000):
                 series_wins[team2] += 1
                 game_count_wins[game_num + 1] += 1
                 break
-
     return series_wins, game_count_wins, n_simulations
 
 # Page config
 st.set_page_config(page_title="NBA Playoff Predictor", page_icon="🏀", layout="centered")
 st.title("🏀 NBA Playoff Predictor")
-st.markdown("Predict playoff outcomes using a machine learning model trained on 11 years of NBA data.")
+st.markdown("ML model trained on 11 years of NBA playoff data.")
 st.divider()
 
-tab1, tab2 = st.tabs(["Single Game", "Full Series"])
+tab1, tab2, tab3 = st.tabs(["Single Game", "Full Series", "Model Stats"])
 
 # ── Tab 1: Single Game ──
 with tab1:
@@ -133,19 +129,45 @@ with tab2:
         else:
             with st.spinner("Simulating 10,000 series..."):
                 series_wins, game_count_wins, n_sims = simulate_series(s_team1, s_team2)
-
             col7, col8 = st.columns(2)
             with col7:
                 st.metric(s_team1 + " wins series", str(round(series_wins[s_team1] / n_sims * 100, 1)) + "%")
             with col8:
                 st.metric(s_team2 + " wins series", str(round(series_wins[s_team2] / n_sims * 100, 1)) + "%")
-
             winner = s_team1 if series_wins[s_team1] > series_wins[s_team2] else s_team2
             st.success("🏆 Predicted series winner: " + winner)
-
             st.subheader("Series length probabilities")
             length_data = pd.DataFrame({
                 'Games': [str(g) + ' games' for g in game_count_wins.keys()],
                 'Probability': [round(v / n_sims * 100, 1) for v in game_count_wins.values()]
             })
             st.bar_chart(length_data.set_index('Games'))
+
+# ── Tab 3: Model Stats ──
+with tab3:
+    st.subheader("Model Comparison")
+    comparison = pd.DataFrame({
+        'Model': ['Logistic Regression', 'Random Forest', 'XGBoost'],
+        'Accuracy': ['63.6%', '65.6%', '67.2%'],
+        'AUC': [0.748, 0.708, 0.729]
+    })
+    st.dataframe(comparison, use_container_width=True, hide_index=True)
+
+    st.divider()
+    st.subheader("Historical Accuracy by Season")
+    season_acc = pd.DataFrame({
+        'Season': ['2014-15','2015-16','2016-17','2017-18','2018-19',
+                   '2019-20','2020-21','2021-22','2022-23','2023-24','2024-25'],
+        'Accuracy': [71.6, 68.6, 72.2, 73.2, 73.2, 71.1, 68.2, 67.8, 70.2, 72.0, 68.3]
+    })
+    st.bar_chart(season_acc.set_index('Season'))
+    st.metric("Overall Historical Accuracy", "70.6%")
+
+    st.divider()
+    st.subheader("Biggest Upsets Predicted Wrong")
+    upsets = pd.DataFrame({
+        'Matchup': ['BOS vs MIA', 'LAL vs POR', 'SAS vs POR', 'TOR vs ORL', 'BOS vs CLE'],
+        'Model Confidence': ['94.4%', '93.3%', '92.3%', '89.7%', '86.8%'],
+        'Result': ['Upset!', 'Upset!', 'Upset!', 'Upset!', 'Upset!']
+    })
+    st.dataframe(upsets, use_container_width=True, hide_index=True)
