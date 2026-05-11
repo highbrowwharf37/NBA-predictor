@@ -22,14 +22,9 @@ def convert_season_id(sid):
 
 regular['SEASON_ID'] = regular['SEASON_ID'].apply(convert_season_id)
 
-team_avgs = games.groupby('TEAM_ABBREVIATION').agg(
-    avg_fg3=('FG3_PCT', 'mean'),
-    avg_reb=('REB', 'mean'),
-    avg_ast=('AST', 'mean'),
-    avg_tov=('TOV', 'mean'),
-    avg_stl=('STL', 'mean'),
-    win_pct=('WIN', 'mean'),
-).reset_index()
+# Use only current season stats for predictions
+current_season = regular[regular['SEASON_ID'] == '2025-26'].copy()
+current_season = current_season.merge(team_ids, on='TEAM_ID')
 
 team_ids = games[['TEAM_ID','TEAM_ABBREVIATION']].drop_duplicates()
 latest_advanced = regular.sort_values('SEASON_ID').groupby('TEAM_ID').last().reset_index()
@@ -77,7 +72,7 @@ def get_game_features(home_team, away_team, home_rest, away_rest):
         'ast_diff':        h['avg_ast']      - a['avg_ast'],
         'tov_diff':        h['avg_tov']      - a['avg_tov'],
         'stl_diff':        h['avg_stl']      - a['avg_stl'],
-        'win_pct_diff':    h['win_pct']      - a['win_pct'],
+        'win_pct_diff':    ha['W_PCT']       - aa['W_PCT'],
         'home_court':      1
     }, ha, aa, h, a
 

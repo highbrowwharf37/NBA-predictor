@@ -11,10 +11,9 @@ import pickle
 df = pd.read_csv("features.csv")
 
 features = ['off_rtg_diff','def_rtg_diff','net_rtg_diff','pace_diff',
-            'ts_pct_diff','rest_diff','last15_win_diff','last15_pm_diff',
-            'fg3_diff','reb_diff','ast_diff','tov_diff','stl_diff',
-            'win_pct_diff','home_court']
-
+            'ts_pct_diff','w_pct_diff','ast_pct_diff','oreb_pct_diff',
+            'dreb_pct_diff','tov_pct_diff','efg_pct_diff',
+            'rest_diff','last15_win_diff','last15_pm_diff','home_court']
 X = df[features]
 y = df['home_win']
 
