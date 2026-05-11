@@ -5,14 +5,14 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score, roc_auc_score, classification_report
 from xgboost import XGBClassifier
+from sklearn.ensemble import VotingClassifier
 import pickle
 
 df = pd.read_csv("features.csv")
 
 features = ['off_rtg_diff','def_rtg_diff','net_rtg_diff','pace_diff',
             'ts_pct_diff','rest_diff','last15_win_diff','last15_pm_diff',
-            'home_court','fg3_diff','reb_diff','ast_diff',
-            'tov_diff','stl_diff','win_pct_diff']
+            'home_court']
 
 X = df[features]
 y = df['home_win']
@@ -49,6 +49,23 @@ xgb.fit(X_train, y_train)
 xgb_acc = accuracy_score(y_test, xgb.predict(X_test))
 xgb_auc = roc_auc_score(y_test, xgb.predict_proba(X_test)[:,1])
 
+# Ensemble
+ensemble = Pipeline([
+    ('scaler', StandardScaler()),
+    ('clf', VotingClassifier(estimators=[
+        ('lr', LogisticRegression(class_weight='balanced', max_iter=1000)),
+        ('rf', RandomForestClassifier(n_estimators=200, class_weight='balanced', random_state=42)),
+        ('xgb', XGBClassifier(n_estimators=200, learning_rate=0.05, max_depth=4, eval_metric='logloss', random_state=42))
+    ], voting='soft'))
+])
+ensemble.fit(X_train, y_train)
+ensemble_acc = accuracy_score(y_test, ensemble.predict(X_test))
+ensemble_auc = roc_auc_score(y_test, ensemble.predict_proba(X_test)[:,1])
+
+print("--- Ensemble (LR + RF + XGB) ---")
+print("Accuracy: " + str(round(ensemble_acc * 100, 1)) + "%")
+print("AUC:      " + str(round(ensemble_auc, 3)))
+
 print("--- Logistic Regression ---")
 print("Accuracy: " + str(round(lr_acc * 100, 1)) + "%")
 print("AUC:      " + str(round(lr_auc, 3)))
@@ -64,7 +81,7 @@ print()
 print(classification_report(y_test, xgb.predict(X_test)))
 
 # Save best model
-best = max([(lr, lr_auc), (rf, rf_auc), (xgb, xgb_auc)], key=lambda x: x[1])[0]
+best = max([(lr, lr_auc), (rf, rf_auc), (xgb, xgb_auc), (ensemble, ensemble_auc)], key=lambda x: x[1])[0]
 with open("model.pkl", "wb") as f:
     pickle.dump(best, f)
 print("Best model saved to model.pkl")

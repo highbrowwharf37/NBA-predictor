@@ -8,26 +8,40 @@ seasons = [
     "2024-25","2025-26"
 ]
 
-all_stats = []
+all_playoff = []
+all_regular = []
 
 for season in seasons:
-    print("Fetching advanced stats for " + season + "...")
+    print("Fetching " + season + "...")
     try:
-        stats = leaguedashteamstats.LeagueDashTeamStats(
+        # Playoff stats
+        playoff = leaguedashteamstats.LeagueDashTeamStats(
             season=season,
             measure_type_detailed_defense="Advanced",
             per_mode_detailed="PerGame",
             season_type_all_star="Playoffs"
         )
-        df = stats.get_data_frames()[0]
-        df['SEASON_ID'] = season
-        all_stats.append(df)
+        df_p = playoff.get_data_frames()[0]
+        df_p['SEASON_ID'] = season
+        all_playoff.append(df_p)
         time.sleep(1)
+
+        # Regular season stats
+        regular = leaguedashteamstats.LeagueDashTeamStats(
+            season=season,
+            measure_type_detailed_defense="Advanced",
+            per_mode_detailed="PerGame",
+            season_type_all_star="Regular Season"
+        )
+        df_r = regular.get_data_frames()[0]
+        df_r['SEASON_ID'] = season
+        all_regular.append(df_r)
+        time.sleep(1)
+
     except Exception as e:
         print("Error on " + season + ": " + str(e))
         time.sleep(2)
 
-combined = pd.concat(all_stats, ignore_index=True)
-combined.to_csv("advanced_stats.csv", index=False)
-print("Done! " + str(len(combined)) + " rows saved to advanced_stats.csv")
-print("Columns: " + str(combined.columns.tolist()))
+pd.concat(all_playoff, ignore_index=True).to_csv("advanced_stats.csv", index=False)
+pd.concat(all_regular, ignore_index=True).to_csv("regular_season_stats.csv", index=False)
+print("Done!")
